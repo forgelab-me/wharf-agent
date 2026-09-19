@@ -75,6 +75,7 @@ type tunnelMessage struct {
 	RequestID   string `json:"request_id,omitempty"`
 	Action      string `json:"action,omitempty"` // "restart" | "stop" | ... | "volume_list" | "volume_read" | "volume_write" | "volume_rename" | "volume_delete"
 	ContainerID string `json:"container_id,omitempty"`
+	Tail        string `json:"tail,omitempty"` // "logs" only -- docker logs --tail value, cf. the controller's containerLogsPageHandler
 
 	// Volume browsing (controller -> agent) -- see handleVolumeCommand.
 	VolumeName string `json:"volume_name,omitempty"`
@@ -216,7 +217,11 @@ func handleCommand(ctx context.Context, conn *websocket.Conn, writeMu *sync.Mute
 	case "stop":
 		out, err = exec.Command("docker", "stop", msg.ContainerID).CombinedOutput()
 	case "logs":
-		out, err = exec.Command("docker", "logs", "--tail", "200", "--timestamps", msg.ContainerID).CombinedOutput()
+		tail := msg.Tail
+		if tail == "" {
+			tail = "200" // older/default controller request with no explicit tail
+		}
+		out, err = exec.Command("docker", "logs", "--tail", tail, "--timestamps", msg.ContainerID).CombinedOutput()
 	case "inspect":
 		out, err = exec.Command("docker", "inspect", msg.ContainerID).CombinedOutput()
 	case "stats":
