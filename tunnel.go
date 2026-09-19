@@ -69,6 +69,7 @@ type tunnelMessage struct {
 	Images     []imageReport     `json:"images,omitempty"`
 	Volumes    []volumeReport    `json:"volumes,omitempty"`
 	Networks   []networkReport   `json:"networks,omitempty"`
+	Version    string            `json:"version,omitempty"` // "state" only -- this agent's own build (cf. main.go's version), so the controller can flag an outdated agent without the agent needing to know what "latest" means itself.
 
 	// "command" (controller -> agent)
 	RequestID   string `json:"request_id,omitempty"`
@@ -163,7 +164,7 @@ func tunnelOnce(httpClient *http.Client, tunnelURL string) error {
 		}
 		writeMu.Lock()
 		defer writeMu.Unlock()
-		return wsjson.Write(ctx, conn, tunnelMessage{Type: "state", Containers: containers, Images: images, Volumes: volumes, Networks: networks})
+		return wsjson.Write(ctx, conn, tunnelMessage{Type: "state", Containers: containers, Images: images, Volumes: volumes, Networks: networks, Version: version})
 	}
 
 	if err := send(); err != nil {
