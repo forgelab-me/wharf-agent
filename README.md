@@ -53,6 +53,10 @@ agent/
     └── identity/     this agent's own self-signed TLS identity
 ```
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 [MIT](LICENSE).
