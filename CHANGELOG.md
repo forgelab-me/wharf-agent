@@ -2,6 +2,11 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.4.0] - 2026-09-21
+
+### Added
+- A `remove` tunnel command (`docker rm`), for the controller's new "Remove" action on a stopped container it didn't deploy itself.
+
 ## [0.3.0] - 2026-09-19
 
 ### Changed

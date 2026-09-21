@@ -201,9 +201,9 @@ func tunnelOnce(httpClient *http.Client, tunnelURL string) error {
 	}
 }
 
-// handleCommand runs a restart/stop/logs/inspect/stats/top/*_inspect/
-// *_remove action requested by the controller and writes back the
-// result under the same request id. Runs
+// handleCommand runs a restart/stop/remove/logs/inspect/stats/top/
+// *_inspect/*_remove action requested by the controller and writes back
+// the result under the same request id. Runs
 // in its own goroutine (started by tunnelOnce's read loop) so a slow
 // docker command never blocks reading the next message off the
 // connection; writeMu keeps this reply from interleaving mid-frame with
@@ -216,6 +216,8 @@ func handleCommand(ctx context.Context, conn *websocket.Conn, writeMu *sync.Mute
 		out, err = exec.Command("docker", "restart", msg.ContainerID).CombinedOutput()
 	case "stop":
 		out, err = exec.Command("docker", "stop", msg.ContainerID).CombinedOutput()
+	case "remove":
+		out, err = exec.Command("docker", "rm", msg.ContainerID).CombinedOutput()
 	case "logs":
 		tail := msg.Tail
 		if tail == "" {
