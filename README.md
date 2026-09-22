@@ -1,5 +1,8 @@
 # wharf-agent
 
+[![CI](https://github.com/forgelab-me/wharf-agent/actions/workflows/agent.yml/badge.svg)](https://github.com/forgelab-me/wharf-agent/actions/workflows/agent.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Runs on each Docker host you want Wharf to manage. Enrolls with the controller over a self-signed, fingerprint-pinned mTLS connection ("connect first, approve later"), then polls for deploy commands and executes them against the local `docker.sock` — no long-lived shared credentials, no orchestrator, just `docker compose up`/`down` on the host it actually runs on. See [wharf-server](https://github.com/forgelab-me/wharf-server) for the controller this connects to.
 
 ## Building and running
