@@ -46,12 +46,32 @@ Both `/opt/wharf-agent/...` mounts must be bind mounts at that exact path on bot
 3. **On-demand commands** — the same tunnel answers one-off requests from the controller: restart/stop a container, tail logs, inspect, live stats, `docker system df`, and so on.
 4. **Deploys** — polls `GET /agent/commands` for queued work. A local (non-Git) stack's compose content is handed over directly; a Git stack is cloned with a transient deploy credential (SSH key or HTTP token, never persisted beyond the clone). Secrets are decrypted by relaying ciphertext back to the controller's custodian — the agent itself never holds a private key.
 
+## Updating an agent
+
+There's no in-app update button yet — [`scripts/update-agent.sh`](scripts/update-agent.sh) is the stand-in in the meantime. Run it on the host the agent container actually lives on (it needs that host's own `docker.sock`): it reads the container's current mounts/args/restart policy straight off `docker inspect`, pulls the image on its current tag, and only removes and recreates the container if the digest actually moved.
+
+```bash
+scripts/update-agent.sh              # asks for confirmation before recreating
+scripts/update-agent.sh -y            # skips it, e.g. from cron
+```
+
+For a scheduled check, one `/etc/cron.d/` entry per host (each host needs its own, since this needs that host's own Docker socket):
+
+```bash
+sudo tee /etc/cron.d/wharf-agent-update <<'EOF'
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 4 * * * root /opt/wharf-agent/update-agent.sh -y wharf-agent >> /var/log/wharf-agent-update.log 2>&1
+EOF
+```
+
 ## Layout
 
 ```
 agent/
 ├── main.go          enrollment, command polling, local/Git deploy execution
 ├── tunnel.go         the persistent WebSocket connection and its command handlers
+├── scripts/
+│   └── update-agent.sh   manual update helper, cf. "Updating an agent" above
 └── internal/
     └── identity/     this agent's own self-signed TLS identity
 ```
