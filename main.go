@@ -702,8 +702,11 @@ func reportResult(client *http.Client, controllerURL, deploymentID, status, outp
 // expectedFingerprint accepts anything (TOFU, logged once at startup).
 func newPinnedClient(cert tls.Certificate, expectedFingerprint string) *http.Client {
 	verify := func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-		if expectedFingerprint == "" || len(rawCerts) == 0 {
+		if expectedFingerprint == "" {
 			return nil
+		}
+		if len(rawCerts) == 0 {
+			return fmt.Errorf("controller presented no certificate")
 		}
 		got := identity.Fingerprint(rawCerts[0])
 		if got != expectedFingerprint {

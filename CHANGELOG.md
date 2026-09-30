@@ -2,6 +2,12 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.6.2] - 2026-09-30
+
+### Security
+
+- With `--controller-fingerprint` set, a connection where the controller presents no certificate is now refused instead of accepted. The TLS handshake already guaranteed a certificate, so this closes a path that could not be reached.
+
 ## [0.6.1] - 2026-09-30
 
 ### Security
