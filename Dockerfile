@@ -11,7 +11,7 @@ COPY . .
 ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o /out/wharf-agent .
 
-FROM alpine:3.24.1
+FROM alpine:3.24.2
 # docker-cli + docker-cli-compose: the agent shells out to `docker compose
 # up` directly (Option C, no ephemeral container - cf. ARCHITECTURE.md,
 # Flow de déploiement). Talks to the host's daemon over the mounted socket,

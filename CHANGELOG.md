@@ -2,7 +2,12 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
-## [0.6.0 ] - 2026-09-30
+## [0.6.1] - 2026-09-30
+
+### Security
+- The image is built on Alpine 3.24.2 instead of 3.24.1, which brings OpenSSL 3.5.8 (CVE-2026-14456 in `libcrypto3` and `libssl3`) and expat 2.8.5 (CVE-2026-93990 in `libexpat`).
+
+## [0.6.0] - 2026-09-30
 
 ### Added
 - The state the agent reports now carries, for vulnerability scanning on the controller: each image's registry digest (`docker images --digests`; empty for an image built on the host), the id of the image each container runs (one grouped `docker inspect`, since `docker ps` does not expose it), and the host's CPU architecture. An older controller ignores the new fields.
