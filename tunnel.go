@@ -35,6 +35,7 @@ type containerReport struct {
 	ServiceName string   `json:"service_name"`
 	Mounts      []string `json:"mounts,omitempty"`   // named volumes only, cf. dockerPsSnapshot
 	Networks    []string `json:"networks,omitempty"` // cf. dockerPsSnapshot
+	ImageID     string   `json:"image_id,omitempty"` // 12-char id of the image the container runs, cf. containerImageIDs
 }
 
 type imageReport struct {
@@ -42,6 +43,7 @@ type imageReport struct {
 	Repository string `json:"repository"`
 	Tag        string `json:"tag"`
 	Size       string `json:"size"`
+	Digest     string `json:"digest,omitempty"` // registry digest of repository:tag, empty for an image built locally
 }
 
 type volumeReport struct {
@@ -69,6 +71,7 @@ type tunnelMessage struct {
 	Images     []imageReport     `json:"images,omitempty"`
 	Volumes    []volumeReport    `json:"volumes,omitempty"`
 	Networks   []networkReport   `json:"networks,omitempty"`
+	Arch       string            `json:"arch,omitempty"`    // "state" only -- the docker host's CPU architecture (amd64, arm64...), so a scan can target the right platform
 	Version    string            `json:"version,omitempty"` // "state" only -- this agent's own build (cf. main.go's version), so the controller can flag an outdated agent without the agent needing to know what "latest" means itself.
 
 	// "command" (controller -> agent)
@@ -142,6 +145,8 @@ func tunnelOnce(httpClient *http.Client, tunnelURL string) error {
 	changed := make(chan struct{}, 1)
 	go watchDockerEvents(ctx, changed)
 
+	arch := dockerArch()
+
 	send := func() error {
 		containers, err := dockerPsSnapshot()
 		if err != nil {
@@ -165,7 +170,7 @@ func tunnelOnce(httpClient *http.Client, tunnelURL string) error {
 		}
 		writeMu.Lock()
 		defer writeMu.Unlock()
-		return wsjson.Write(ctx, conn, tunnelMessage{Type: "state", Containers: containers, Images: images, Volumes: volumes, Networks: networks, Version: version})
+		return wsjson.Write(ctx, conn, tunnelMessage{Type: "state", Containers: containers, Images: images, Volumes: volumes, Networks: networks, Arch: arch, Version: version})
 	}
 
 	if err := send(); err != nil {
@@ -466,7 +471,75 @@ func dockerPsSnapshot() ([]containerReport, error) {
 			Networks:    splitCommaList(raw.Networks),
 		})
 	}
-	return reports, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	attachImageIDs(reports, containerImageIDs(reports))
+	return reports, nil
+}
+
+// containerImageIDs maps each container's id to the id of the image it was
+// created from. docker ps only exposes the image's name, which stops being
+// the same image once a tag moves; one grouped inspect gives the real link.
+// Best effort: a failure just leaves the ids empty.
+func containerImageIDs(reports []containerReport) map[string]string {
+	if len(reports) == 0 {
+		return nil
+	}
+	args := []string{"inspect", "--format", "{{.Id}} {{.Image}}"}
+	for _, r := range reports {
+		args = append(args, r.ID)
+	}
+	// A container removed mid-inspect makes docker exit non-zero but still
+	// print the others, so the output is used regardless of the exit status.
+	out, _ := exec.Command("docker", args...).Output()
+	return parseImageIDs(string(out))
+}
+
+// parseImageIDs reads "<container id> sha256:<image id>" lines.
+func parseImageIDs(out string) map[string]string {
+	ids := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		containerID, imageID, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if !ok {
+			continue
+		}
+		imageID = strings.TrimPrefix(strings.TrimSpace(imageID), "sha256:")
+		if len(imageID) > 12 {
+			imageID = imageID[:12]
+		}
+		ids[containerID] = imageID
+	}
+	return ids
+}
+
+func attachImageIDs(reports []containerReport, ids map[string]string) {
+	for i := range reports {
+		reports[i].ImageID = ids[reports[i].ID]
+	}
+}
+
+// dockerArch reports the docker host's architecture in Go's naming
+// (amd64, arm64), which is what image platforms and scanners expect.
+func dockerArch() string {
+	out, err := exec.Command("docker", "info", "--format", "{{.Architecture}}").Output()
+	if err != nil {
+		return ""
+	}
+	return normalizeArch(string(out))
+}
+
+func normalizeArch(s string) string {
+	switch a := strings.ToLower(strings.TrimSpace(s)); a {
+	case "x86_64", "amd64":
+		return "amd64"
+	case "aarch64", "arm64":
+		return "arm64"
+	case "armv7l", "armhf", "arm":
+		return "arm"
+	default:
+		return a
+	}
 }
 
 // splitCommaList splits one of docker ps's comma-separated fields
@@ -494,13 +567,22 @@ func splitCommaList(s string) []string {
 // Images page could never show what Docker itself calls "<none>" --
 // exactly the images a "Clean up unused" button exists to remove.
 func dockerImagesSnapshot() ([]imageReport, error) {
-	out, err := exec.Command("docker", "images", "-a", "--format", "{{json .}}").Output()
+	out, err := exec.Command("docker", "images", "-a", "--digests", "--format", "{{json .}}").Output()
 	if err != nil {
 		return nil, err
 	}
+	return parseImageLines(string(out))
+}
 
+// parseImageLines reads `docker images --digests` JSON lines. Digest is
+// "<none>" for an image with no registry digest (built locally, or loaded).
+// An image with several digests for one repository is listed once per
+// digest; it is reported once, with the smallest, so the snapshot stays
+// deterministic and (id, repository, tag) stays unique.
+func parseImageLines(out string) ([]imageReport, error) {
 	var reports []imageReport
-	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	index := map[[3]string]int{}
+	scanner := bufio.NewScanner(strings.NewReader(out))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -511,15 +593,29 @@ func dockerImagesSnapshot() ([]imageReport, error) {
 			Repository string `json:"Repository"`
 			Tag        string `json:"Tag"`
 			Size       string `json:"Size"`
+			Digest     string `json:"Digest"`
 		}
 		if err := json.Unmarshal([]byte(line), &raw); err != nil {
 			continue // one malformed line shouldn't drop the whole snapshot
 		}
+		digest := raw.Digest
+		if !strings.HasPrefix(digest, "sha256:") {
+			digest = ""
+		}
+		key := [3]string{raw.ID, raw.Repository, raw.Tag}
+		if i, seen := index[key]; seen {
+			if d := reports[i].Digest; digest != "" && (d == "" || digest < d) {
+				reports[i].Digest = digest
+			}
+			continue
+		}
+		index[key] = len(reports)
 		reports = append(reports, imageReport{
 			ID:         raw.ID,
 			Repository: raw.Repository,
 			Tag:        raw.Tag,
 			Size:       raw.Size,
+			Digest:     digest,
 		})
 	}
 	return reports, scanner.Err()

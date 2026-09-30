@@ -2,6 +2,11 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [Unreleased]
+
+### Added
+- The state the agent reports now carries, for vulnerability scanning on the controller: each image's registry digest (`docker images --digests`; empty for an image built on the host), the id of the image each container runs (one grouped `docker inspect`, since `docker ps` does not expose it), and the host's CPU architecture. An older controller ignores the new fields.
+
 ## [0.5.0] - 2026-09-29
 
 ### Added
