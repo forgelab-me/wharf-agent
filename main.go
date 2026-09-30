@@ -342,10 +342,11 @@ func cloneRepo(cmd commandResponse, dir string) (output string, err error) {
 	return string(out), err
 }
 
-// runGitDeploy clones the stack's repo (cf. cloneRepo), looks for
-// secrets.enc.yaml next to the compose file and, if present, relays the
-// ciphertext to the controller for decryption (the agent is the one that
-// discovers it here, unlike the local-stack flow).
+// runGitDeploy clones the stack's repo (cf. cloneRepo), then looks next to
+// the compose file for secrets.refs.yaml (relayed to the controller, which
+// resolves it into the environment) or, failing that, secrets.enc.yaml
+// (relayed for decryption). The agent is the one that discovers them here,
+// unlike the local-stack flow.
 func runGitDeploy(client *http.Client, controllerURL string, cmd commandResponse) (status, output, composeContent string) {
 	dir := filepath.Join(stacksDir, cmd.StackID)
 	// Re-clone from scratch every deploy -- simplest correct thing, cf.
@@ -368,11 +369,37 @@ func runGitDeploy(client *http.Client, controllerURL string, cmd commandResponse
 	}
 	composeContent = string(composeBytes)
 
-	secretsPath := filepath.Join(filepath.Dir(composeFullPath), "secrets.enc.yaml")
-	if ciphertext, err := os.ReadFile(secretsPath); err == nil {
+	composeDir := filepath.Dir(composeFullPath)
+	refs, hasRefs, err := readRepoFile(filepath.Join(composeDir, refsFileName))
+	if err != nil {
+		return "failed", "read " + refsFileName + ": " + err.Error(), composeContent
+	}
+
+	var notes string
+	if hasRefs {
+		// secrets.refs.yaml is the only source: secrets.enc.yaml is sent
+		// along solely so ref+sops:// entries can read from it.
+		enc, _, err := readRepoFile(filepath.Join(composeDir, encFileName))
+		if err != nil {
+			return "failed", "read " + encFileName + ": " + err.Error(), composeContent
+		}
+		env, resolveNotes, err := resolveViaController(client, controllerURL, cmd.DeploymentID, refs, enc)
+		if err != nil {
+			return "failed", "resolve " + refsFileName + ": " + err.Error(), composeContent
+		}
+		if err := writeEnvFile(dir, env); err != nil {
+			return "failed", err.Error(), composeContent
+		}
+		if err := writeSecretFiles(dir, env, composeContent); err != nil {
+			return "failed", err.Error(), composeContent
+		}
+		for _, n := range resolveNotes {
+			notes += "note: " + n + "\n"
+		}
+	} else if ciphertext, err := os.ReadFile(filepath.Join(composeDir, encFileName)); err == nil {
 		plaintext, err := decryptViaController(client, controllerURL, cmd.DeploymentID, ciphertext)
 		if err != nil {
-			return "failed", "decrypt secrets.enc.yaml: " + err.Error(), composeContent
+			return "failed", "decrypt " + encFileName + ": " + err.Error(), composeContent
 		}
 		env := parseEnvLines(string(plaintext))
 		if err := writeEnvFile(dir, env); err != nil {
@@ -384,7 +411,7 @@ func runGitDeploy(client *http.Client, controllerURL string, cmd commandResponse
 	}
 
 	status, output = runComposeUp(dir, cmd.ComposePath, cmd.StackID, cmd.RegistryAuths)
-	output += removeEnvFile(dir)
+	output = notes + output + removeEnvFile(dir)
 	return status, output, composeContent
 }
 

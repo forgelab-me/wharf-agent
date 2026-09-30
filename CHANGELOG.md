@@ -2,6 +2,11 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.5.0] - 2026-09-29
+
+### Added
+- Git stacks: if `secrets.refs.yaml` sits next to the compose file, the agent sends it (and `secrets.enc.yaml`, if any) to the controller and deploys with the environment it returns, instead of decrypting `secrets.enc.yaml` wholesale. Without that file nothing changes. In this mode both files must be regular files: a symlink is refused rather than followed out of the clone.
+
 ## [0.4.0] - 2026-09-21
 
 ### Added
