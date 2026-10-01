@@ -2,6 +2,11 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.7.0] - 2026-10-01
+
+### Added
+- A `stats_many` command: CPU, memory, network and disk of several containers in one call, for the controller's live stacks list. The figures come from the Docker engine's own API through the socket the agent already has, as exact byte counts (`docker stats` rounds them to three digits, which is useless to compute a rate over a few seconds). If that socket cannot be reached, for instance with a remote `DOCKER_HOST`, the agent falls back to `docker stats`, whose figures are rounded.
+
 ## [0.6.2] - 2026-09-30
 
 ### Security

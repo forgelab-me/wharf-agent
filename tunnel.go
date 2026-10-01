@@ -33,7 +33,7 @@ type containerReport struct {
 	Created     string   `json:"created"`
 	StackID     string   `json:"stack_id"`
 	ServiceName string   `json:"service_name"`
-	Mounts      []string `json:"mounts,omitempty"`   // named volumes only, cf. dockerPsSnapshot
+	Mounts      []string `json:"mounts,omitempty"`   // volume names and bind mount paths, cf. splitCommaList
 	Networks    []string `json:"networks,omitempty"` // cf. dockerPsSnapshot
 	ImageID     string   `json:"image_id,omitempty"` // 12-char id of the image the container runs, cf. containerImageIDs
 }
@@ -79,6 +79,8 @@ type tunnelMessage struct {
 	Action      string `json:"action,omitempty"` // "restart" | "stop" | ... | "volume_list" | "volume_read" | "volume_write" | "volume_rename" | "volume_delete"
 	ContainerID string `json:"container_id,omitempty"`
 	Tail        string `json:"tail,omitempty"` // "logs" only -- docker logs --tail value, cf. the controller's containerLogsPageHandler
+
+	ContainerIDs []string `json:"container_ids,omitempty"` // "stats_many" only, cf. statsMany
 
 	// Volume browsing (controller -> agent) -- see handleVolumeCommand.
 	VolumeName string `json:"volume_name,omitempty"`
@@ -233,6 +235,8 @@ func handleCommand(ctx context.Context, conn *websocket.Conn, writeMu *sync.Mute
 		out, err = exec.Command("docker", "inspect", msg.ContainerID).CombinedOutput()
 	case "stats":
 		out, err = exec.Command("docker", "stats", "--no-stream", "--format", "{{json .}}", msg.ContainerID).CombinedOutput()
+	case "stats_many":
+		out, err = statsMany(msg.ContainerIDs)
 	case "top":
 		out, err = exec.Command("docker", "top", msg.ContainerID).CombinedOutput()
 	case "host_stats":
@@ -543,10 +547,9 @@ func normalizeArch(s string) string {
 }
 
 // splitCommaList splits one of docker ps's comma-separated fields
-// (Mounts, Networks). Mounts lists named volumes by name -- anonymous
-// volumes and bind mounts show up as hashes/paths rather than a usable
-// volume name, which is fine here since only named volumes are what the
-// Volumes page tracks or could ever link "used by" against.
+// (Mounts, Networks). Mounts lists volumes by name, anonymous ones by
+// hash, and bind mounts by host path: the controller keeps only what matches
+// a Docker volume name.
 func splitCommaList(s string) []string {
 	if s == "" {
 		return nil
