@@ -63,6 +63,10 @@ type commandResponse struct {
 }
 
 func main() {
+	// `wharf-agent healthcheck` is what the image's HEALTHCHECK runs (cf. health.go)
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(runHealthcheck())
+	}
 	log.Println("wharf-agent", version)
 	controllerURL := flag.String("controller", "", "controller agent endpoint, e.g. https://wharf.example.internal:8443")
 	expectedFingerprint := flag.String("controller-fingerprint", "", "expected sha256 fingerprint of the controller's certificate (recommended; TOFU-only if omitted)")
@@ -176,6 +180,8 @@ func pollLoop(client *http.Client, controllerURL, idFile, id string) {
 			log.Println("decode status response:", err)
 			continue
 		}
+
+		markControllerSeen(out.Status == "connected")
 
 		if out.Status != lastStatus {
 			log.Println("status:", out.Status)

@@ -39,6 +39,10 @@ Both `/opt/wharf-agent/...` mounts must be bind mounts at that exact path on bot
 - `/var/lib/wharf-agent/identity` — **must persist across container recreation.** This is the agent's own enrollment identity; losing it means re-enrolling and re-approving from scratch.
 - `/opt/wharf-agent/stacks` — where deployed stacks' compose files and `.env`/secret files land. **Must be a bind mount at this exact host path, not a named volume.** The agent runs `docker compose` from inside its own container but against the *host's* Docker daemon (Docker-outside-of-Docker, via the mounted socket) — a `secrets: <name>: file: ...` in a stack's compose file resolves to an absolute path from the agent's own filesystem view, and the daemon then needs that same path to exist on its own disk to bind-mount it. A named volume gives a path that only exists inside the agent's container, invisible to the daemon; the deploy fails with "bind source path does not exist."
 
+## Health
+
+The image has a `HEALTHCHECK` that runs `wharf-agent healthcheck`. It reports healthy while the controller answers the agent and, once the host is approved, its state keeps reaching the controller; an agent waiting for approval is healthy. The agent listens on no port: the check reads a small state file the running process keeps up to date. See [Health checks](https://wharf.forgelab.me/guide/monitoring).
+
 ## What it actually does
 
 1. **Enrollment** — generates a persistent self-signed TLS identity on first run, registers with the controller, and waits (`pending`) until an admin approves it from the Hosts page.

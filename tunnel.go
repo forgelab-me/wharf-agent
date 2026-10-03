@@ -172,7 +172,11 @@ func tunnelOnce(httpClient *http.Client, tunnelURL string) error {
 		}
 		writeMu.Lock()
 		defer writeMu.Unlock()
-		return wsjson.Write(ctx, conn, tunnelMessage{Type: "state", Containers: containers, Images: images, Volumes: volumes, Networks: networks, Arch: arch, Version: version})
+		err = wsjson.Write(ctx, conn, tunnelMessage{Type: "state", Containers: containers, Images: images, Volumes: volumes, Networks: networks, Arch: arch, Version: version})
+		if err == nil {
+			markStatePushed() // what the image's health check reads, cf. health.go
+		}
+		return err
 	}
 
 	if err := send(); err != nil {

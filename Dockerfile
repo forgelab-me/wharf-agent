@@ -33,4 +33,8 @@ VOLUME /var/lib/wharf-agent/identity
 # host is required for any relative bind mount in a stack's compose file
 # to resolve correctly (cf. ARCHITECTURE.md, compose-unpacker heritage).
 VOLUME /opt/wharf-agent/stacks
+# The controller answers this agent and, once approved, the host state keeps
+# reaching it (cf. health.go). Docker only marks the container unhealthy.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD ["wharf-agent", "healthcheck"]
 ENTRYPOINT ["wharf-agent"]

@@ -2,6 +2,11 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.8.0] - 2026-10-03
+
+### Added
+- **A health check.** The image has a `HEALTHCHECK` that runs `wharf-agent healthcheck`, so `docker ps` shows `(healthy)` or `(unhealthy)`. The agent listens on no port, so the check reads a small state file the running agent keeps up to date: healthy while the controller answers the agent's status check (every 10 seconds, within a minute) and, once the host is approved, while its state reaches the controller (at least every 45 seconds, within about two minutes, with 150 seconds of grace after the first connection). An agent waiting for approval is healthy.
+
 ## [0.7.0] - 2026-10-01
 
 ### Added
