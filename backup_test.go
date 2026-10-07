@@ -108,7 +108,7 @@ func TestHelperArgumentsNeverHoldASecret(t *testing.T) {
 			t.Errorf("the arguments of docker run, visible in the host's process list, hold %q: %s", secret, joined)
 		}
 	}
-	for _, want := range []string{"--rm", "--label wharf.backup=1", "-e RESTIC_PASSWORD", "-v wharf-bk-r1:/repo", "-v blog_data:/volumes/blog_data:ro", resticImage + " backup --json /volumes/blog_data"} {
+	for _, want := range []string{"--rm", "--label wharf.backup-helper=1", "-e RESTIC_PASSWORD", "-v wharf-bk-r1:/repo", "-v blog_data:/volumes/blog_data:ro", resticImage + " backup --json /volumes/blog_data"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("missing %q in %s", want, joined)
 		}

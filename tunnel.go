@@ -47,8 +47,9 @@ type imageReport struct {
 }
 
 type volumeReport struct {
-	Name   string `json:"name"`
-	Driver string `json:"driver"`
+	Name   string            `json:"name"`
+	Driver string            `json:"driver"`
+	Labels map[string]string `json:"labels,omitempty"` // cf. volume_labels.go: a backup job can choose volumes by them
 }
 
 type networkReport struct {
@@ -633,39 +634,6 @@ func parseImageLines(out string) ([]imageReport, error) {
 			Size:       raw.Size,
 			Digest:     digest,
 		})
-	}
-	return reports, scanner.Err()
-}
-
-// dockerVolumesSnapshot runs `docker volume ls`. Deliberately not
-// `docker system df -v`, which does report real per-volume disk usage --
-// but by actually walking each volume's files, ~1.5s+ on a host with a
-// meaningful amount of data in this environment, measured while
-// designing this. Fine for a one-off inspection, not for something
-// re-run on every docker events line. Size is left for a later, more
-// targeted chunk (cf. ARCHITECTURE.md) rather than slowing down every
-// snapshot for a column most ticks don't need refreshed.
-func dockerVolumesSnapshot() ([]volumeReport, error) {
-	out, err := exec.Command("docker", "volume", "ls", "--format", "{{json .}}").Output()
-	if err != nil {
-		return nil, err
-	}
-
-	var reports []volumeReport
-	scanner := bufio.NewScanner(strings.NewReader(string(out)))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		var raw struct {
-			Name   string `json:"Name"`
-			Driver string `json:"Driver"`
-		}
-		if err := json.Unmarshal([]byte(line), &raw); err != nil {
-			continue // one malformed line shouldn't drop the whole snapshot
-		}
-		reports = append(reports, volumeReport{Name: raw.Name, Driver: raw.Driver})
 	}
 	return reports, scanner.Err()
 }

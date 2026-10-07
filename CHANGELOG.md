@@ -2,6 +2,11 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.9.1] - 2026-10-07
+
+### Added
+- **The volumes' labels.** The agent reports each volume's labels (read from the Docker engine API, with the CLI as a fallback), so the controller can choose the volumes of a backup job by stack or by label. Its own helper containers and temporary share volume now carry the label `wharf.backup-helper`, not `wharf.backup`, which is the name a user is likely to give their own volumes.
+
 ## [0.9.0] - 2026-10-07
 
 ### Added

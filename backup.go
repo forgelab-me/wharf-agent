@@ -32,7 +32,7 @@ const resticImage = "restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb6
 const (
 	// backupLabel marks every container and volume this file creates, so a
 	// crash that leaves some behind can be cleaned up at the next start.
-	backupLabelKey = "wharf.backup"
+	backupLabelKey = "wharf.backup-helper" // not "wharf.backup": that one is the name a user is likely to give their own volumes
 	backupLabel    = backupLabelKey + "=1"
 
 	backupQuickTimeout = 3 * time.Minute // test, init, list: includes a first pull of the image
