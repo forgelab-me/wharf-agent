@@ -39,6 +39,12 @@ Both `/opt/wharf-agent/...` mounts must be bind mounts at that exact path on bot
 - `/var/lib/wharf-agent/identity` — **must persist across container recreation.** This is the agent's own enrollment identity; losing it means re-enrolling and re-approving from scratch.
 - `/opt/wharf-agent/stacks` — where deployed stacks' compose files and `.env`/secret files land. **Must be a bind mount at this exact host path, not a named volume.** The agent runs `docker compose` from inside its own container but against the *host's* Docker daemon (Docker-outside-of-Docker, via the mounted socket) — a `secrets: <name>: file: ...` in a stack's compose file resolves to an absolute path from the agent's own filesystem view, and the daemon then needs that same path to exist on its own disk to bind-mount it. A named volume gives a path that only exists inside the agent's container, invisible to the daemon; the deploy fails with "bind source path does not exist."
 
+## Volume backups
+
+The controller can ask the agent to back up named volumes to a SMB share, and to restore them into a new volume. The agent has Docker mount the share as a temporary volume (created through the Docker API, so the password never shows in a process list, and removed when the run ends), then runs the official `restic/restic` image, pinned by digest, with the volumes mounted read-only. The host needs the `cifs` kernel module and must be able to pull that image once. See [Volume backups](https://wharf.forgelab.me/guide/volume-backups).
+
+`go test -tags integration -run Integration .` runs the whole path against a real SMB share and Docker (`WHARF_IT_SMB_SERVER`, `WHARF_IT_SMB_SHARE`, `WHARF_IT_SMB_USER`, `WHARF_IT_SMB_PASSWORD`; see `backup_integration_test.go`).
+
 ## Health
 
 The image has a `HEALTHCHECK` that runs `wharf-agent healthcheck`. It reports healthy while the controller answers the agent and, once the host is approved, its state keeps reaching the controller; an agent waiting for approval is healthy. The agent listens on no port: the check reads a small state file the running process keeps up to date. See [Health checks](https://wharf.forgelab.me/guide/monitoring).

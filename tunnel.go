@@ -88,6 +88,9 @@ type tunnelMessage struct {
 	NewPath    string `json:"new_path,omitempty"`
 	Data       string `json:"data,omitempty"`
 
+	// Volume backups: the destination, the volumes, what to do (cf. backup.go).
+	Backup *backupRequest `json:"backup,omitempty"`
+
 	// "command_result" (agent -> controller)
 	OK     bool   `json:"ok,omitempty"`
 	Output string `json:"output,omitempty"`
@@ -103,6 +106,8 @@ const stateResyncInterval = 45 * time.Second
 // open for as long as the process runs, reconnecting on any failure.
 // Never returns.
 func runHostStateTunnel(httpClient *http.Client, controllerURL string) {
+	setBackupReporter(httpClient, controllerURL)
+	reapBackupLeftovers()
 	tunnelURL := strings.Replace(controllerURL, "https://", "wss://", 1) + "/agent/tunnel"
 	for {
 		if err := tunnelOnce(httpClient, tunnelURL); err != nil {
@@ -296,6 +301,10 @@ func handleCommand(ctx context.Context, conn *websocket.Conn, writeMu *sync.Mute
 		out, err = exec.Command("docker", "network", "rm", msg.ContainerID).CombinedOutput()
 	case "volume_list", "volume_read", "volume_write", "volume_rename", "volume_delete":
 		out, err = handleVolumeCommand(msg)
+	case "backup_test", "backup_init", "backup_snapshots":
+		out, err = handleBackupCommand(ctx, msg)
+	case "backup_run", "backup_restore":
+		out, err = startBackupRun(msg)
 	default:
 		err = fmt.Errorf("unknown action %q", msg.Action)
 	}

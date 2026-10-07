@@ -2,6 +2,11 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.9.0] - 2026-10-07
+
+### Added
+- **Volume backups.** The agent backs up named volumes to a SMB share and restores them into a new volume, when the controller asks. It has Docker mount the share as a temporary volume (created through the Docker API, so the password never appears in a process list; removed at the end of the run, and any left by a crash are removed at the next start), runs the official `restic/restic` image pinned by digest with the volumes mounted read-only, and reports back over HTTP, so a backup that takes an hour survives the tunnel dropping. Containers that use the volumes can be stopped for the copy and are started again whatever happens, before retention runs. A snapshot is read back before a run counts as a success and before retention removes anything, and retention refuses a rule that would remove every snapshot. Needs the `cifs` kernel module on the host and a first pull of the restic image.
+
 ## [0.8.0] - 2026-10-03
 
 ### Added
