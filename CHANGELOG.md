@@ -2,6 +2,11 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.9.4] - 2026-10-13
+
+### Fixed
+- A secret whose value is not a plain word now reaches Compose unchanged. The `.env` Wharf writes for a deploy used to hold values as they were, so a value on several lines (a credentials file, a certificate) kept only its first line, `#` after a space cut the value short, and a `$` was read as a variable or stopped the deploy. Such values are now quoted and escaped; plain ones are written as before.
+
 ## [0.9.3] - 2026-10-13
 
 ### Security

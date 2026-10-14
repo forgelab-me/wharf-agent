@@ -488,7 +488,7 @@ func writeEnvFile(dir string, env map[string]string) error {
 	}
 	var b strings.Builder
 	for k, v := range env {
-		fmt.Fprintf(&b, "%s=%s\n", k, v)
+		fmt.Fprintf(&b, "%s=%s\n", k, envValue(v))
 	}
 	// 0600: the only other reader that matters is docker compose itself,
 	// reading this same file from disk at `up` time.
@@ -496,6 +496,25 @@ func writeEnvFile(dir string, env map[string]string) error {
 		return fmt.Errorf("write .env: %w", err)
 	}
 	return nil
+}
+
+// envValue writes a value the way Compose reads it back unchanged. A plain
+// value stays as is; anything else (a newline, a space, `#`, `$`, a quote, a
+// backslash...) goes in double quotes, where Compose understands \n, \", \\
+// and \$. Unquoted, a second line was lost, ` #` cut the value short and a `$`
+// was read as a variable (or stopped the deploy).
+func envValue(v string) string {
+	plain := true
+	for _, r := range v {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_./:@%+,=-", r)) {
+			plain = false
+			break
+		}
+	}
+	if plain {
+		return v
+	}
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, `$`, `\$`, "\n", `\n`, "\r", `\r`).Replace(v) + `"`
 }
 
 // removeEnvFile deletes dir/.env right after the `docker compose up` call

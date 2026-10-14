@@ -139,3 +139,20 @@ secrets:
 		t.Fatalf("environment:-sourced secret must not be treated as file-used, got %v", used)
 	}
 }
+
+func TestEnvValueKeepsPlainValuesAndQuotesTheRest(t *testing.T) {
+	for in, want := range map[string]string{
+		"s3cret":                         "s3cret",
+		"":                               "",
+		"sk-live_1.2/x:y@z%+,=":          "sk-live_1.2/x:y@z%+,=",
+		"username=Traefik\npassword=xxx": `"username=Traefik\npassword=xxx"`,
+		"a #b":                           `"a #b"`,
+		"pa$word":                        `"pa\$word"`,
+		`it's "q" back\slash`:            `"it's \"q\" back\\slash"`,
+		"crlf\r\n":                       `"crlf\r\n"`,
+	} {
+		if got := envValue(in); got != want {
+			t.Errorf("envValue(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
