@@ -346,6 +346,15 @@ find . -mindepth 1 -maxdepth 1 -print0 | while IFS= read -r -d '' p; do
   printf '%s\t%s\t%s\t%s\n' "$t" "$sz" "$mt" "$n"
 done`
 
+// volumeReadScript prints a file as base64 on a single line, but only if it
+// is at most 6 MiB (what the controller's tunnel accepts in one message,
+// 8 MiB, once encoded). The size is checked first: the whole file would
+// otherwise be held in the agent's memory, encoded and copied into the reply
+// before anything could refuse it.
+const volumeReadScript = `s=$(stat -c %s "$1") || exit 1
+if [ "$s" -gt 6291456 ]; then echo "file too large to read here ($s bytes, the limit is 6 MiB)"; exit 1; fi
+base64 -w0 "$1" 2>&1`
+
 // handleVolumeCommand runs one browsing/editing operation against
 // msg.VolumeName in a fresh, single-purpose container -- cf.
 // volumeHelperImage. Every path (Path/NewPath) is the controller's
@@ -367,7 +376,7 @@ func handleVolumeCommand(msg tunnelMessage) ([]byte, error) {
 		// -w0: always a single line, regardless of file size -- the
 		// controller decodes it directly, no newline-stripping needed.
 		return exec.Command("docker", "run", "--rm", "-v", mount, volumeHelperImage,
-			"sh", "-c", `base64 -w0 "$1" 2>&1`, "sh", msg.Path).CombinedOutput()
+			"sh", "-c", volumeReadScript, "sh", msg.Path).CombinedOutput()
 	case "volume_write":
 		// The content travels over stdin, not as a shell argument --
 		// an argv-based payload risks the kernel's ARG_MAX for anything

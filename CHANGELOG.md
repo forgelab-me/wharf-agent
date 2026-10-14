@@ -2,6 +2,12 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.9.2] - 2026-10-13
+
+### Fixed
+- **A memory leak.** Every call to the Docker engine's socket (the live stats of the stacks list, and the volumes report every 45 seconds) left its connection open for good, with two goroutines and their buffers: nothing closed it, neither the agent nor the Docker daemon. The agent grew by a few megabytes an hour and, after about three days, was killed by the kernel for lack of memory, which could freeze a small VM. Each call now closes its connection.
+- Opening or downloading a big file from the volume browser no longer loads the whole file into the agent's memory. The agent used to read it entirely, encode it and copy it into the reply before the controller could refuse it, which could take gigabytes and get the agent killed for lack of memory. It now checks the size first and refuses a file over 6 MiB (what the controller's connection carries in one message) with a clear message.
+
 ## [0.9.1] - 2026-10-07
 
 ### Added

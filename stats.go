@@ -99,10 +99,16 @@ func dockerSocket() string {
 	return ""
 }
 
+// unixClient builds a client for the engine's socket. A new one is made for
+// every call, so keep-alive is off: an idle connection would stay open with its
+// two goroutines and buffers (a custom Transport has no idle timeout, and
+// dockerd never closes an idle one), and every stats or volume poll would add
+// a few more until the agent was killed for lack of memory.
 func unixClient(sock string) *http.Client {
 	return &http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
+			DisableKeepAlives: true,
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				return (&net.Dialer{}).DialContext(ctx, "unix", sock)
 			},
