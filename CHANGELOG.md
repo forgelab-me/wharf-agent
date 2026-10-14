@@ -2,6 +2,11 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.9.3] - 2026-10-13
+
+### Security
+- The image is built with Go 1.27.2 instead of 1.27.1, which fixes three denial-of-service issues in the standard library (CVE-2026-78667 in `net/http`, CVE-2026-78669 in `net/http`'s HTTP/2 and CVE-2026-97031 in `crypto/tls`). It now ships `pcre2` 10.49 (CVE-2026-103111, an out-of-bounds write) and `docker-cli` 29.8.2 (CVE-2026-92542 and CVE-2026-92543 in the Docker engine's code).
+
 ## [0.9.2] - 2026-10-13
 
 ### Fixed
