@@ -71,6 +71,8 @@ func main() {
 	controllerURL := flag.String("controller", "", "controller agent endpoint, e.g. https://wharf.example.internal:8443")
 	expectedFingerprint := flag.String("controller-fingerprint", "", "expected sha256 fingerprint of the controller's certificate (recommended; TOFU-only if omitted)")
 	identityDir := flag.String("identity-dir", "/var/lib/wharf-agent/identity", "directory holding this agent's persistent TLS identity")
+	enrollmentToken := flag.String("enrollment-token", os.Getenv("WHARF_ENROLLMENT_TOKEN"), "single-use enrollment token from the controller's Hosts page (optional: skips manual approval; also read from WHARF_ENROLLMENT_TOKEN)")
+	rotateAfter := flag.Duration("rotate-after", 90*24*time.Hour, "rotate this agent's certificate once it is older than this (0 disables)")
 	flag.Parse()
 
 	if *controllerURL == "" {
@@ -97,13 +99,13 @@ func main() {
 	idFile := filepath.Join(*identityDir, "host_id")
 
 	for {
-		id, err := loadOrEnroll(client, *controllerURL, idFile, hostname)
+		id, err := loadOrEnroll(client, *controllerURL, idFile, hostname, *enrollmentToken)
 		if err != nil {
 			log.Println("enrollment failed, retrying in 10s:", err)
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		pollLoop(client, *controllerURL, idFile, id)
+		pollLoop(client, *controllerURL, idFile, id, *identityDir, *rotateAfter)
 		// pollLoop only returns on a 404 (controller no longer knows this
 		// id) — loop back around to re-enroll.
 	}
@@ -114,7 +116,7 @@ func main() {
 // certificate itself now travels as the TLS client certificate (see
 // newPinnedClient) rather than a JSON field — the controller derives the
 // fingerprint from the connection itself, not from a claim in the body.
-func loadOrEnroll(client *http.Client, controllerURL, idFile, hostname string) (string, error) {
+func loadOrEnroll(client *http.Client, controllerURL, idFile, hostname, enrollmentToken string) (string, error) {
 	if b, err := os.ReadFile(idFile); err == nil {
 		return strings.TrimSpace(string(b)), nil
 	}
@@ -126,7 +128,15 @@ func loadOrEnroll(client *http.Client, controllerURL, idFile, hostname string) (
 		return "", fmt.Errorf("marshal enrollment request: %w", err)
 	}
 
-	resp, err := client.Post(controllerURL+"/agent/enrollments", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, controllerURL+"/agent/enrollments", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("build enrollment request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if enrollmentToken != "" {
+		req.Header.Set("Authorization", "Bearer "+enrollmentToken)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("POST /agent/enrollments: %w", err)
 	}
@@ -154,7 +164,7 @@ func loadOrEnroll(client *http.Client, controllerURL, idFile, hostname string) (
 // pending deploy command on the same tick. It only returns when the
 // controller responds 404 to the status check (id no longer known, e.g.
 // its database was reset) — the caller re-enrolls from scratch.
-func pollLoop(client *http.Client, controllerURL, idFile, id string) {
+func pollLoop(client *http.Client, controllerURL, idFile, id, identityDir string, rotateAfter time.Duration) {
 	lastStatus := ""
 	tunnelStarted := false
 	for {
@@ -189,6 +199,7 @@ func pollLoop(client *http.Client, controllerURL, idFile, id string) {
 		}
 
 		if out.Status == "connected" {
+			maybeRotate(client, controllerURL, identityDir, rotateAfter)
 			checkAndRunCommand(client, controllerURL)
 			if !tunnelStarted {
 				tunnelStarted = true
@@ -726,6 +737,7 @@ func reportResult(client *http.Client, controllerURL, deploymentID, status, outp
 // empreinte plutôt que validés par une chaîne de confiance". An empty
 // expectedFingerprint accepts anything (TOFU, logged once at startup).
 func newPinnedClient(cert tls.Certificate, expectedFingerprint string) *http.Client {
+	setClientCert(cert)
 	verify := func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 		if expectedFingerprint == "" {
 			return nil
@@ -744,7 +756,9 @@ func newPinnedClient(cert tls.Certificate, expectedFingerprint string) *http.Cli
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				Certificates:          []tls.Certificate{cert},
+				// Read at handshake time, so a rotated certificate is used
+				// by every new connection without rebuilding the client.
+				GetClientCertificate:  getClientCert,
 				InsecureSkipVerify:    true, // pinning replaces chain validation, cf. verify() above
 				VerifyPeerCertificate: verify,
 			},

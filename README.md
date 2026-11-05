@@ -32,6 +32,8 @@ Both `/opt/wharf-agent/...` mounts must be bind mounts at that exact path on bot
 | `--controller` | *(required)* | The controller's agent endpoint, e.g. `https://wharf.example.internal:8443` |
 | `--controller-fingerprint` | *(none)* | Expected SHA-256 fingerprint of the controller's certificate. Strongly recommended — without it the agent trusts whatever certificate it sees on first connection (TOFU), fine for local testing, not for anything reachable over an untrusted network. |
 | `--identity-dir` | `/var/lib/wharf-agent/identity` | Where this agent's own persistent TLS identity is kept |
+| `--enrollment-token` | *(none)* | Single-use token generated on the controller's Hosts page (also read from `WHARF_ENROLLMENT_TOKEN`). With it the agent is approved automatically on first contact; without it, it waits for manual approval. |
+| `--rotate-after` | `2160h` (90 days) | Rotate the agent's certificate once it is older than this; `0` disables. The controller keeps accepting the old certificate until the new one is first used. |
 
 ### Volumes
 

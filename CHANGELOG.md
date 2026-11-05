@@ -2,6 +2,12 @@
 
 All notable changes to `wharf-agent` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match the `vX.Y.Z` git tags that trigger a release build.
 
+## [0.10.0] - 2026-11-04
+
+### Added
+- **`--enrollment-token`** (or `WHARF_ENROLLMENT_TOKEN`): the single-use token generated on the controller's Hosts page. With it the agent is approved on first contact; without it, nothing changes and it waits for a manual approval. Needs controller 0.21.0 to have any effect.
+- **Certificate rotation, `--rotate-after`** (default 90 days, `0` to disable). Once its certificate is older than that, the agent prepares a new key pair next to the current one, announces only the public certificate to the controller and switches over once the controller acknowledges. The new private key never leaves the host, and an interruption at any step is recovered on the next start. Against a controller older than 0.21.0 the attempt is refused and retried every 10 minutes, harmlessly.
+
 ## [0.9.4] - 2026-10-13
 
 ### Fixed
